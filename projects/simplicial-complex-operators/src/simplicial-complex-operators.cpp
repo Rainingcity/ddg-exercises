@@ -61,7 +61,28 @@ SparseMatrix<size_t> SimplicialComplexOperators::buildVertexEdgeAdjacencyMatrix(
     // Note: You can build an Eigen sparse matrix from triplets, then return it as a Geometry Central SparseMatrix.
     // See <https://eigen.tuxfamily.org/dox/group__TutorialSparse.html> for documentation.
 
-    return identityMatrix<size_t>(1); // placeholder
+    typedef Triplet<size_t> TripletEntry;
+    std::vector<TripletEntry> tripletList{};
+
+    for (Edge e : mesh->edges()) {
+        // Get Edge index
+        size_t idxE = e.getIndex();
+
+        // Get Vertex index
+        Vertex v1 = e.halfedge.vertex;
+        size_t idxV1 = v1.getIndex();
+        Vertex v2 = e.halfedge.twin.vertex;
+        size_t idxV2 = v2.getIndex();
+
+        // Add adjacent relationship
+        tripletList.push_back(TripletEntry(idxE, idxV1, 1));
+        tripletList.push_back(TripletEntry(idxE, idxV2, 1));
+    }
+
+    // Construct sparse matrix from triplets
+    SparseMatrix<size_t> newMatrix(mesh->nEdges(), mesh->nVertices());
+    newMatrix.setFromTriplets(tripletList.begin(), tripletList.end());
+    return newMatrix;
 }
 
 /*
@@ -73,7 +94,28 @@ SparseMatrix<size_t> SimplicialComplexOperators::buildVertexEdgeAdjacencyMatrix(
 SparseMatrix<size_t> SimplicialComplexOperators::buildFaceEdgeAdjacencyMatrix() const {
 
     // TODO
-    return identityMatrix<size_t>(1); // placeholder
+    typedef Triplet<size_t> TripletEntry;
+    std::vector<TripletEntry> tripletList{};
+
+    for (Edge e : mesh->edges()) {
+        // Get Edge index
+        size_t idxE = e.getIndex();
+
+        // Get Face index
+        Face f1 = e.halfedge.face;
+        size_t idxF1 = f1.getIndex();
+        Face f2 = e.halfedge.twin.face;
+        size_t idxF2 = f2.getIndex();
+
+        // Add adjacent relationship
+        tripletList.push_back(TripletEntry(idxF2, idxE, 1));
+        tripletList.push_back(TripletEntry(idxF1, idxE, 1));
+    }
+
+    // Construct sparse matrix from triplets
+    SparseMatrix<size_t> newMatrix(mesh->nFaces(), mesh->nEdges());
+    newMatrix.setFromTriplets(tripletList.begin(), tripletList.end());
+    return newMatrix;
 }
 
 /*
