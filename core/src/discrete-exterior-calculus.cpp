@@ -42,8 +42,18 @@ namespace surface {
  */
 SparseMatrix<double> VertexPositionGeometry::buildHodgeStar0Form() const {
 
-    // TODO
-    return identityMatrix<double>(1); // placeholder
+    typedef Eigen::Triplet<double> TripletEntry;
+    std::vector<TripletEntry> tripletList{};
+
+    for (Vertex v : mesh.vertices()) {
+        size_t idxV = v.getIndex();
+        tripletList.push_back(TripletEntry(idxV, idxV, barycentricDualArea(v)));
+    }
+
+    // Construct sparse matrix from triplets
+    SparseMatrix<double> newMatrix(mesh.nVertices(), mesh.nVertices());
+    newMatrix.setFromTriplets(tripletList.begin(), tripletList.end());
+    return newMatrix;
 }
 
 /*
@@ -54,8 +64,23 @@ SparseMatrix<double> VertexPositionGeometry::buildHodgeStar0Form() const {
  */
 SparseMatrix<double> VertexPositionGeometry::buildHodgeStar1Form() const {
 
-    // TODO
-    return identityMatrix<double>(1); // placeholder
+    typedef Eigen::Triplet<double> TripletEntry;
+    std::vector<TripletEntry> tripletList{};
+
+    for (Edge e : mesh.edges()) {
+        size_t idxE = e.getIndex();
+
+        double sumCot = 0.0;
+        if (!e.halfedge().face().isBoundaryLoop()) sumCot += cotan(e.halfedge());
+        if (!e.halfedge().twin().face().isBoundaryLoop()) sumCot += cotan(e.halfedge().twin());
+
+        tripletList.push_back(TripletEntry(idxE, idxE, sumCot / 2));
+    }
+
+    // Construct sparse matrix from triplets
+    SparseMatrix<double> newMatrix(mesh.nEdges(), mesh.nEdges());
+    newMatrix.setFromTriplets(tripletList.begin(), tripletList.end());
+    return newMatrix;
 }
 
 /*
@@ -66,8 +91,36 @@ SparseMatrix<double> VertexPositionGeometry::buildHodgeStar1Form() const {
  */
 SparseMatrix<double> VertexPositionGeometry::buildHodgeStar2Form() const {
 
-    // TODO
-    return identityMatrix<double>(1); // placeholder
+    typedef Eigen::Triplet<double> TripletEntry;
+    std::vector<TripletEntry> tripletList{};
+
+    for (Face f : mesh.faces()) {
+        size_t idxF = f.getIndex();
+
+        double s = 0.0;
+        Halfedge st = f.halfedge();
+
+        Halfedge he = st;
+        do {
+            s += edgeLength(he.edge());
+            he = he.next();
+        } while (he != st);
+        s = s / 2;
+
+        double area = s;
+        he = st;
+        do {
+            area *= (s - edgeLength(he.edge()));
+            he = he.next();
+        } while (he != st);
+
+        tripletList.push_back(TripletEntry(idxF, idxF, 1 / sqrt(area)));
+    }
+
+    // Construct sparse matrix from triplets
+    SparseMatrix<double> newMatrix(mesh.nFaces(), mesh.nFaces());
+    newMatrix.setFromTriplets(tripletList.begin(), tripletList.end());
+    return newMatrix;
 }
 
 /*
@@ -78,8 +131,25 @@ SparseMatrix<double> VertexPositionGeometry::buildHodgeStar2Form() const {
  */
 SparseMatrix<double> VertexPositionGeometry::buildExteriorDerivative0Form() const {
 
-    // TODO
-    return identityMatrix<double>(1); // placeholder
+    typedef Eigen::Triplet<double> TripletEntry;
+    std::vector<TripletEntry> tripletList{};
+
+    for (Edge e : mesh.edges()) {
+        size_t idxE = e.getIndex();
+
+        Vertex v1 = e.halfedge().vertex();
+        size_t idxV1 = v1.getIndex();
+        Vertex v2 = e.halfedge().twin().vertex();
+        size_t idxV2 = v2.getIndex();
+
+        tripletList.push_back(TripletEntry(idxE, idxV1, -1.0));
+        tripletList.push_back(TripletEntry(idxE, idxV2, 1.0));
+    }
+
+    // Construct sparse matrix from triplets
+    SparseMatrix<double> newMatrix(mesh.nEdges(), mesh.nVertices());
+    newMatrix.setFromTriplets(tripletList.begin(), tripletList.end());
+    return newMatrix;
 }
 
 /*
@@ -90,8 +160,29 @@ SparseMatrix<double> VertexPositionGeometry::buildExteriorDerivative0Form() cons
  */
 SparseMatrix<double> VertexPositionGeometry::buildExteriorDerivative1Form() const {
 
-    // TODO
-    return identityMatrix<double>(1); // placeholder
+    typedef Eigen::Triplet<double> TripletEntry;
+    std::vector<TripletEntry> tripletList{};
+
+    for (Edge e : mesh.edges()) {
+        size_t idxE = e.getIndex();
+
+        Face f = e.halfedge().face();
+        if (!f.isBoundaryLoop()) {
+            size_t idxF = f.getIndex();
+            tripletList.push_back(TripletEntry(idxF, idxE, 1.0));
+        }
+
+        f = e.halfedge().twin().face();
+        if (!f.isBoundaryLoop()) {
+            size_t idxF = f.getIndex();
+            tripletList.push_back(TripletEntry(idxF, idxE, -1.0));
+        }
+    }
+
+    // Construct sparse matrix from triplets
+    SparseMatrix<double> newMatrix(mesh.nFaces(), mesh.nEdges());
+    newMatrix.setFromTriplets(tripletList.begin(), tripletList.end());
+    return newMatrix;
 }
 
 } // namespace surface

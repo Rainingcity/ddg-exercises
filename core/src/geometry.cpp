@@ -80,8 +80,9 @@ double VertexPositionGeometry::totalArea() const {
  */
 double VertexPositionGeometry::cotan(Halfedge he) const {
 
-    // TODO
-    return 0; // placeholder
+    Vector3 v = halfedgeVector(he.next().next());
+    Vector3 w = halfedgeVector(he.next().twin());
+    return dot(v, w) / norm(cross(v, w));
 }
 
 /*
@@ -92,8 +93,18 @@ double VertexPositionGeometry::cotan(Halfedge he) const {
  */
 double VertexPositionGeometry::barycentricDualArea(Vertex v) const {
 
-    // TODO
-    return 0; // placeholder
+    Halfedge st = v.halfedge();
+    Halfedge he = st;
+
+    double totalArea = 0.0;
+
+    do {
+        if (!he.face().isBoundaryLoop())
+            totalArea += faceArea(he.face());
+        he = he.twin().next();
+    } while (he != st);
+
+    return totalArea / 3.0;
 }
 
 /*
