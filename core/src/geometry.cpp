@@ -116,8 +116,12 @@ double VertexPositionGeometry::barycentricDualArea(Vertex v) const {
  */
 double VertexPositionGeometry::angle(Corner c) const {
 
-    // TODO
-    return 0; // placeholder
+    Halfedge he = c.halfedge();
+    while(he.next() != c.halfedge()) he = he.next();
+    Vector3 v = halfedgeVector(c.halfedge());
+    Vector3 w = halfedgeVector(he.twin());
+    double cosine = dot(v, w) / norm(v) / norm(w);
+    return acos(cosine);
 }
 
 /*
@@ -128,8 +132,10 @@ double VertexPositionGeometry::angle(Corner c) const {
  */
 double VertexPositionGeometry::dihedralAngle(Halfedge he) const {
 
-    // TODO
-    return 0; // placeholder
+    Vector3 v = faceNormal(he.face());
+    Vector3 w = faceNormal(he.twin().face());
+    Vector3 e = halfedgeVector(he);
+    return atan2(dot(e / e.norm(), cross(v, w)), dot(v, w));
 }
 
 /*
@@ -140,8 +146,22 @@ double VertexPositionGeometry::dihedralAngle(Halfedge he) const {
  */
 Vector3 VertexPositionGeometry::vertexNormalEquallyWeighted(Vertex v) const {
 
-    // TODO
-    return {0, 0, 0}; // placeholder
+    Halfedge st = v.halfedge();
+    Halfedge he = st;
+    int count = 0;
+    Vector3 totalNormal = {0, 0, 0};
+    do {
+        if (!he.face().isBoundaryLoop()) {
+            if (he.edge().halfedge() == he)
+                totalNormal += faceNormal(he.face());
+            else
+                totalNormal -= faceNormal(he.face());
+            count++;
+        }
+
+        he = he.twin().next();
+    } while (he != st);
+    return totalNormal / count;
 }
 
 /*
@@ -152,8 +172,20 @@ Vector3 VertexPositionGeometry::vertexNormalEquallyWeighted(Vertex v) const {
  */
 Vector3 VertexPositionGeometry::vertexNormalAngleWeighted(Vertex v) const {
 
-    // TODO
-    return {0, 0, 0}; // placeholder
+    Halfedge st = v.halfedge();
+    Halfedge he = st;
+    Vector3 totalNormal = {0, 0, 0};
+    do {
+        if (!he.face().isBoundaryLoop()) {
+            Corner c = he.corner();
+            double currAngle = angle(c);
+            Vector3 currNormal = faceNormal(he.face());
+            totalNormal += currAngle * currNormal;
+        }
+
+        he = he.twin().next();
+    } while (he != st);
+    return totalNormal / totalNormal.norm();
 }
 
 /*
@@ -164,8 +196,19 @@ Vector3 VertexPositionGeometry::vertexNormalAngleWeighted(Vertex v) const {
  */
 Vector3 VertexPositionGeometry::vertexNormalSphereInscribed(Vertex v) const {
 
-    // TODO
-    return {0, 0, 0}; // placeholder
+    Halfedge st = v.halfedge();
+    Halfedge he = st;
+    Vector3 totalNormal = {0, 0, 0};
+    do {
+        if (!he.twin().face().isBoundaryLoop()) {
+            Vector3 v = halfedgeVector(he);
+            Vector3 w = halfedgeVector(he.twin().next());
+            totalNormal += cross(w, v) / v.norm2() / w.norm2();
+        }
+
+        he = he.twin().next();
+    } while (he != st);
+    return totalNormal / totalNormal.norm();
 }
 
 /*
@@ -176,8 +219,18 @@ Vector3 VertexPositionGeometry::vertexNormalSphereInscribed(Vertex v) const {
  */
 Vector3 VertexPositionGeometry::vertexNormalAreaWeighted(Vertex v) const {
 
-    // TODO
-    return {0, 0, 0}; // placeholder
+    Halfedge st = v.halfedge();
+    Halfedge he = st;
+    Vector3 totalNormal = {0, 0, 0};
+    do {
+        Face f = he.face();
+        if (!f.isBoundaryLoop()) {
+            totalNormal += faceArea(f) * faceNormal(f);
+        }
+
+        he = he.twin().next();
+    } while (he != st);
+    return totalNormal / totalNormal.norm();
 }
 
 /*
@@ -188,8 +241,19 @@ Vector3 VertexPositionGeometry::vertexNormalAreaWeighted(Vertex v) const {
  */
 Vector3 VertexPositionGeometry::vertexNormalGaussianCurvature(Vertex v) const {
 
-    // TODO
-    return {0, 0, 0}; // placeholder
+    Halfedge st = v.halfedge();
+    Halfedge he = st;
+    Vector3 totalNormal = {0, 0, 0};
+    do {
+        if (!he.twin().face().isBoundaryLoop() && !he.face().isBoundaryLoop()) {
+            double theta = dihedralAngle(he);
+            Vector3 e = halfedgeVector(he);
+            totalNormal += theta * e / e.norm();
+        }
+
+        he = he.twin().next();
+    } while (he != st);
+    return totalNormal / totalNormal.norm();
 }
 
 /*
@@ -200,8 +264,19 @@ Vector3 VertexPositionGeometry::vertexNormalGaussianCurvature(Vertex v) const {
  */
 Vector3 VertexPositionGeometry::vertexNormalMeanCurvature(Vertex v) const {
 
-    // TODO
-    return {0, 0, 0}; // placeholder
+    Halfedge st = v.halfedge();
+    Halfedge he = st;
+    Vector3 totalNormal = {0, 0, 0};
+    do {
+        if (!he.twin().face().isBoundaryLoop()) {
+            Vector3 v = halfedgeVector(he);
+            Vector3 w = halfedgeVector(he.twin().next());
+            totalNormal += cotan(he.twin()) * v + cotan(he.twin().next()) * w;
+        }
+
+        he = he.twin().next();
+    } while (he != st);
+    return totalNormal / totalNormal.norm();
 }
 
 /*
@@ -212,8 +287,18 @@ Vector3 VertexPositionGeometry::vertexNormalMeanCurvature(Vertex v) const {
  */
 double VertexPositionGeometry::angleDefect(Vertex v) const {
 
-    // TODO
-    return 0; // placeholder
+    Halfedge st = v.halfedge();
+    Halfedge he = st;
+    double defect = 2 * M_PI;
+    do {
+        if (!he.face().isBoundaryLoop()) {
+            Corner c = he.corner();
+            defect -= angle(c);
+        }
+
+        he = he.twin().next();
+    } while (he != st);
+    return defect;
 }
 
 /*
@@ -224,8 +309,12 @@ double VertexPositionGeometry::angleDefect(Vertex v) const {
  */
 double VertexPositionGeometry::totalAngleDefect() const {
 
-    // TODO
-    return 0; // placeholder
+    double totalDefect = 0.0;
+    for(Vertex v : mesh.vertices()) {
+        totalDefect += angleDefect(v);
+    }
+
+    return totalDefect;
 }
 
 /*
@@ -236,8 +325,19 @@ double VertexPositionGeometry::totalAngleDefect() const {
  */
 double VertexPositionGeometry::scalarMeanCurvature(Vertex v) const {
 
-    // TODO
-    return 0; // placeholder
+    Halfedge st = v.halfedge();
+    Halfedge he = st;
+    double meanCurvature = 0.0;
+    do {
+        if (!he.twin().face().isBoundaryLoop() && !he.face().isBoundaryLoop()) {
+            double theta = dihedralAngle(he);
+            Vector3 e = halfedgeVector(he);
+            meanCurvature += theta * e.norm();
+        }
+
+        he = he.twin().next();
+    } while (he != st);
+    return meanCurvature / 2;
 }
 
 /*
@@ -248,8 +348,19 @@ double VertexPositionGeometry::scalarMeanCurvature(Vertex v) const {
  */
 double VertexPositionGeometry::circumcentricDualArea(Vertex v) const {
 
-    // TODO
-    return 0; // placeholder
+    Halfedge st = v.halfedge();
+    Halfedge he = st;
+    double totalArea = 0.0;
+    do {
+        if (!he.twin().face().isBoundaryLoop()) {
+            Vector3 v = halfedgeVector(he.twin());
+            Vector3 w = halfedgeVector(he.twin().next());
+            totalArea += cotan(he.twin()) * v.norm2() + cotan(he.twin().next()) * w.norm2();
+        }
+
+        he = he.twin().next();
+    } while (he != st);
+    return totalArea / 8;
 }
 
 /*
@@ -260,8 +371,11 @@ double VertexPositionGeometry::circumcentricDualArea(Vertex v) const {
  */
 std::pair<double, double> VertexPositionGeometry::principalCurvatures(Vertex v) const {
 
-    // TODO
-    return std::make_pair(0, 0); // placeholder
+    double area = circumcentricDualArea(v);
+    double K = angleDefect(v) / area;
+    double H = scalarMeanCurvature(v) / area;
+    double diff = sqrt(H * H - K);
+    return std::make_pair(H - diff, H + diff);
 }
 
 
