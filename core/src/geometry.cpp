@@ -388,8 +388,33 @@ std::pair<double, double> VertexPositionGeometry::principalCurvatures(Vertex v) 
  */
 SparseMatrix<double> VertexPositionGeometry::laplaceMatrix() const {
 
-    // TODO
-    return identityMatrix<double>(1); // placeholder
+    typedef Eigen::Triplet<double> TripletEntry;
+    std::vector<TripletEntry> tripletList{};
+
+    for(Vertex v : mesh.vertices()) {
+        size_t idxV = v.getIndex();
+        Halfedge st = v.halfedge();
+        Halfedge he = st;
+        double sum = 0.0;
+        do {
+            double curr = 0.0;
+            if (!he.face().isBoundaryLoop()) curr += cotan(he);
+            if (!he.twin().face().isBoundaryLoop()) curr += cotan(he.twin());
+            curr /= 2.0;
+            sum += curr;
+
+            tripletList.push_back(TripletEntry(idxV, he.tipVertex().getIndex(), -curr));
+
+            he = he.twin().next();
+        } while (he != st);
+
+        tripletList.push_back(TripletEntry(idxV, idxV, sum + 1e-8));
+    }
+
+    // Construct sparse matrix from triplets
+    SparseMatrix<double> newMatrix(mesh.nVertices(), mesh.nVertices());
+    newMatrix.setFromTriplets(tripletList.begin(), tripletList.end());
+    return newMatrix;
 }
 
 /*
@@ -400,8 +425,18 @@ SparseMatrix<double> VertexPositionGeometry::laplaceMatrix() const {
  */
 SparseMatrix<double> VertexPositionGeometry::massMatrix() const {
 
-    // TODO
-    return identityMatrix<double>(1); // placeholder
+    typedef Eigen::Triplet<double> TripletEntry;
+    std::vector<TripletEntry> tripletList{};
+
+    for(Vertex v : mesh.vertices()) {
+        size_t idxV = v.getIndex();
+        tripletList.push_back(TripletEntry(idxV, idxV, barycentricDualArea(v)));
+    }
+
+    // Construct sparse matrix from triplets
+    SparseMatrix<double> newMatrix(mesh.nVertices(), mesh.nVertices());
+    newMatrix.setFromTriplets(tripletList.begin(), tripletList.end());
+    return newMatrix;
 }
 
 /*
