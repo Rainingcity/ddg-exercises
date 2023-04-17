@@ -80,6 +80,8 @@ double VertexPositionGeometry::totalArea() const {
  */
 double VertexPositionGeometry::cotan(Halfedge he) const {
 
+    if (!he.isInterior()) return 0.0;
+
     Vector3 v = halfedgeVector(he.next().next());
     Vector3 w = halfedgeVector(he.next().twin());
     return dot(v, w) / norm(cross(v, w));
@@ -448,8 +450,30 @@ SparseMatrix<double> VertexPositionGeometry::massMatrix() const {
  */
 SparseMatrix<std::complex<double>> VertexPositionGeometry::complexLaplaceMatrix() const {
 
-    // TODO
-    return identityMatrix<std::complex<double>>(1); // placeholder
+    typedef Eigen::Triplet<std::complex<double>> TripletEntry;
+    std::vector<TripletEntry> tripletList{};
+
+    for(Vertex v : mesh.vertices()) {
+        size_t idxV = v.getIndex();
+        Halfedge st = v.halfedge();
+        Halfedge he = st;
+        double sum = 0.0;
+        do {
+            double curr = (cotan(he) + cotan(he.twin())) / 2.0;
+            sum += curr;
+
+            tripletList.push_back(TripletEntry(idxV, he.tipVertex().getIndex(), std::complex<double>(-curr, 0)));
+
+            he = he.twin().next();
+        } while (he != st);
+
+        tripletList.push_back(TripletEntry(idxV, idxV, std::complex<double>(sum + 1e-8, 0)));
+    }
+
+    // Construct sparse matrix from triplets
+    SparseMatrix<std::complex<double>> newMatrix(mesh.nVertices(), mesh.nVertices());
+    newMatrix.setFromTriplets(tripletList.begin(), tripletList.end());
+    return newMatrix;
 }
 
 /*
