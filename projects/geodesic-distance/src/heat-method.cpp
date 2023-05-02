@@ -1,5 +1,6 @@
 // Implement member functions HeatMethod class.
 #include "heat-method.h"
+#include "geometrycentral/numerical/linear_solvers.h"
 
 using namespace geometrycentral;
 using namespace geometrycentral::surface;
@@ -14,8 +15,10 @@ HeatMethod::HeatMethod(ManifoldSurfaceMesh* surfaceMesh, VertexPositionGeometry*
 
     // TODO: Build Laplace and flow matrices.
     // Note: core/geometry.cpp has meanEdgeLength() function
-    this->A = identityMatrix<double>(1); // placeholder
-    this->F = identityMatrix<double>(1); // placeholder
+    this->A = geometry->laplaceMatrix();
+
+    double h = geometry->meanEdgeLength();
+    this->F = geometry->massMatrix() + h * h * A;
 }
 
 /*
@@ -27,8 +30,28 @@ HeatMethod::HeatMethod(ManifoldSurfaceMesh* surfaceMesh, VertexPositionGeometry*
  */
 FaceData<Vector3> HeatMethod::computeVectorField(const Vector<double>& u) const {
 
-    // TODO
-    return FaceData<Vector3>(*mesh, {0, 0, 0}); // placeholder
+    FaceData<Vector3> X(*mesh, {0, 0, 0});
+    for (Face f : mesh->faces()) {
+        double area = geometry->faceArea(f);
+        Vector3 N = geometry->faceNormal(f);
+        Vector3 Du {0, 0, 0};
+
+        Halfedge st = f.halfedge();
+        Halfedge he = st;
+        do {
+            size_t idxV = he.next().tipVertex().getIndex();
+            double ui = u[idxV];
+            Vector3 ei = geometry->halfedgeVector(he);
+            Du += ui * cross(N, ei);
+
+            he = he.next();
+        } while (he != st);
+
+        Du /= 2 * area;
+        X[f] = -Du / Du.norm();
+    }
+
+    return X;
 }
 
 /*
@@ -39,8 +62,28 @@ FaceData<Vector3> HeatMethod::computeVectorField(const Vector<double>& u) const 
  */
 Vector<double> HeatMethod::computeDivergence(const FaceData<Vector3>& X) const {
 
-    // TODO
-    return Vector<double>::Zero(1); // placeholder
+    Vector<double> divX = Vector<double>::Zero(mesh->nVertices());
+    for (Vertex v : mesh->vertices()) {
+        Halfedge st = v.halfedge();
+        Halfedge he = st;
+
+        double divXv = 0.0;
+
+        do {
+            Face f = he.face();
+            if (!f.isBoundaryLoop()) {
+                Vector3 Xj = X[f];
+                Vector3 e1 = geometry->halfedgeVector(he);
+                Vector3 e2 = geometry->halfedgeVector(he.next().next().twin());
+                divXv += geometry->cotan(he) * dot(e1, Xj) + geometry->cotan(he.next().next()) * dot(e2, Xj);
+            }
+            he = he.twin().next();
+        } while (he != st);
+
+        divXv /= 2;
+        divX[v.getIndex()] = divXv;
+    }
+    return divX;
 }
 
 /*
@@ -51,8 +94,11 @@ Vector<double> HeatMethod::computeDivergence(const FaceData<Vector3>& X) const {
  */
 Vector<double> HeatMethod::compute(const Vector<double>& delta) const {
 
-    // TODO
-    Vector<double> phi = Vector<double>::Zero(delta.rows());
+    SparseMatrix<double> _A = A;
+    SparseMatrix<double> _F = F;
+
+    Vector<double> divX = -computeDivergence(computeVectorField(solvePositiveDefinite(_F, delta)));
+    Vector<double> phi = solvePositiveDefinite(_A, divX);
 
     // Since φ is unique up to an additive constant, it should be shifted such that the smallest distance is zero
     this->subtractMinimumDistance(phi);
